@@ -11,7 +11,7 @@ class Trainer:
     """
     Trainer class for training and evaluating a model.
     """
-    def __init__(self, model, train_loader, val_loader, criterion, optimizer, metrics=[], scheduler=None, device=None, config=None, logger=None):
+    def __init__(self, model, train_loader, val_loader, criterion, optimizer, metrics={}, scheduler=None, device=None, config=None, logger=None):
         """
         Initializes the trainer with model, data, and optimization settings.
         
@@ -97,7 +97,7 @@ class Trainer:
 
         predictions, targets = torch.cat(predictions, axis=0), torch.cat(targets, axis=0)
         epoch_loss = running_loss / len(self.train_loader)
-        epoch_metrics = [metric(predictions, targets) for metric in self.metrics]
+        epoch_metrics = {key: metric(predictions, targets) for key, metric in self.metrics.items()}
         return epoch_loss, epoch_metrics
 
     def _evaluate(self, epoch):
@@ -142,7 +142,7 @@ class Trainer:
 
         val_loss = running_loss / len(self.val_loader)
         predictions, targets = torch.cat(predictions, axis=0), torch.cat(targets, axis=0)
-        val_metrics = [metric(predictions, targets) for metric in self.metrics]
+        val_metrics = {key: metric(predictions, targets) for key, metric in self.metrics.items()}
         return val_loss, val_metrics
 
     def train(self, num_epochs):
@@ -162,24 +162,28 @@ class Trainer:
             train_loss, train_metric = self._train_one_epoch(epoch)
             
             # Log the results for the current epoch
-            wandb.log({"train_loss": train_loss, "train_acc": train_metric[0]})
+            log_dict_train = {f"train/{key}": value for key, value in train_metric.items()}
+            log_dict_train["train/loss"] = train_loss
+            wandb.log(log_dict_train)
 
             # Evaluate the model
             val_loss, val_metrics = self._evaluate(epoch)
             
+            log_dict_val = {f"val/{key}": value for key, value in val_metrics.items()}
+            log_dict_val["val/loss"] =  val_loss
             # Log the results for the current validation
-            wandb.log({"val_loss": val_loss, "val_acc": val_metrics[0]})
+            wandb.log(log_dict_val)
 
             # Log the results for the current epoch
             self.logger.info(f"Epoch {epoch+1}/{num_epochs}: "
-                             f"Train Loss: {train_loss:.4f}, Train Accuracy: {val_metrics[0]:.4f}, "
-                             f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_metrics[0]:.4f}")
+                             f"Train Loss: {train_loss:.4f}, Train Accuracy: {train_metric["accuracy"]:.4f}, "
+                             f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_metrics["accuracy"]:.4f}")
 
             # Save the best model
-            if val_metrics[0] > best_val_acc:
-                best_val_acc = val_metrics[0]
+            if val_metrics["accuracy"] > best_val_acc:
+                best_val_acc = val_metrics["accuracy"]
                 best_epoch = epoch
-                self.save_checkpoint(epoch, val_metrics[0])
+                self.save_checkpoint(epoch, val_metrics["accuracy"])
 
             # Optionally update the learning rate scheduler
             if self.scheduler:

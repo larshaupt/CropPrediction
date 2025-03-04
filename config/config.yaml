@@ -1,7 +1,7 @@
 data_root: '/local/home/lhauptmann/CV4A/data/raw'
 data_split: '/local/home/lhauptmann/CV4A/data/raw/FieldIds.csv'
 batch_size: 16
-num_classes: 8
+num_classes: 5
 gru_hidden_size: 256
 gru_num_layers: 2
 dropout: 0.5
