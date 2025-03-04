@@ -107,6 +107,10 @@ class CropDataset(Dataset):
             "mask": mask,
             "tile_index": tile_index
         }
+        
+    def get_class_distribution(self, n_classes):
+        class_distribution = torch.bincount(torch.cat([item["mask"].unique().flatten() for item in self.dataset]).int(), minlength = n_classes)
+        return class_distribution
 
 class ProcessedCropDataset(CropDataset):
     
@@ -121,7 +125,7 @@ class ProcessedCropDataset(CropDataset):
         if is_train:
             dataset_path = Path(self.root) / "train_samples.pt"
         else:
-            dataset_path = Path(self.root) / "test_samples.pt"
+            dataset_path = Path(self.root) / "val_samples.pt"
         self.dataset = torch.load(dataset_path)
     
 
@@ -176,12 +180,10 @@ def create_dataloader(root, split_csv, batch_size=16, chip_size=224, stride=16, 
             if torch.isin(item["field_ids"].unique(), valid_ids).all() and item["field_ids"].unique().shape[0] > 1
         ]
 
-
-        
     # Create DataLoader
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers)
     
-    class_distribution = torch.bincount(torch.cat([item["mask"].flatten() for item in dataset.dataset]).int())
+    class_distribution = torch.bincount(torch.cat([item["mask"].unique().flatten() for item in dataset.dataset]).int())
     print(f"Class distribution {"Train" if is_train else "Test"}: {class_distribution}")
 
     return dataloader

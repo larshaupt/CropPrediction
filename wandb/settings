@@ -1,5 +1,0 @@
-[default]
-entity = lhauptm
-project = crop-classification
-base_url = https://api.wandb.ai
-

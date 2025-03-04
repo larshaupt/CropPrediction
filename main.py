@@ -10,7 +10,6 @@ from torchmetrics import Accuracy, F1Score
 from src.data_loader import create_dataloader
 from src.model import CropClassifierWithGRU
 from src.trainer import Trainer
-from src.evaluator import evaluate, log_evaluation_metrics
 from src.metrics import F1ScorePerClass
 from src.losses import BCEMILLoss
 
@@ -89,7 +88,7 @@ def main(config_path='config/config.yaml'):
     logger.info("Starting training process")
     
     # Set device
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = config['device']
     logger.info(f"Using device: {device}")
     
     # Load the dataset and dataloaders
@@ -99,6 +98,8 @@ def main(config_path='config/config.yaml'):
     train_loader = create_dataloader(data_root, split_csv, batch_size=config['batch_size'], is_train=True, num_workers=4)
     val_loader = create_dataloader(data_root, split_csv, batch_size=config['batch_size'], is_train=False, num_workers=4)
     
+    class_distribution = train_loader.dataset.get_class_distribution(config["num_classes"])
+    
     # Create the model
     model = CropClassifierWithGRU(
         num_classes=config['num_classes'],
@@ -107,7 +108,7 @@ def main(config_path='config/config.yaml'):
     ).to(device)
     
     # Define loss function and optimizer
-    criterion = BCEMILLoss(n_classes=config['num_classes'], merge_intercropping=True)
+    criterion = BCEMILLoss(n_classes=config['num_classes'], merge_intercropping=True, class_distribution=class_distribution, device=device)
     optimizer = Adam(model.parameters(), lr=config['lr'])
     metrics = {
         "accuracy": Accuracy(task="multilabel", num_labels=config["num_classes"]),

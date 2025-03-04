@@ -2,4 +2,7 @@ output/*
 */__pycache__/*
 __pycache__/*
 .vscode/*
+wandb/*
+wandb
+wandb/
 

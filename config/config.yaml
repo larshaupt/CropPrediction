@@ -11,3 +11,4 @@ lr_gamma: 0.7
 num_epochs: 30
 seed: 10
 output_dir: '/local/home/lhauptmann/CV4A/CPrediction/output'
+device: 'cuda:0'
