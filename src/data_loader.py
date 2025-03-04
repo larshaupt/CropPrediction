@@ -10,7 +10,7 @@ from skimage import exposure
 import torch
 from torchgeo.datasets import CV4AKenyaCropType
 from torchvision.transforms import ToTensor
-
+from sklearn.model_selection import train_test_split
 
 def histogram_equalization(x):
     """Applies histogram equalization to the first 12 bands, leaves the last band unchanged."""
@@ -31,7 +31,7 @@ def normalize_bands(x):
 
 
 # Update the transform function to use these statistics
-def get_transforms():
+def get_transforms(normalize = False):
     """
     Returns the default transformations to apply to the images.
     This can include normalization, resizing, etc.
@@ -39,10 +39,13 @@ def get_transforms():
     Returns:
         - transform (callable): Transformation function.
     """
-    transform = T.Compose([
-        T.Lambda(histogram_equalization),  # Apply histogram equalization
-        T.Lambda(normalize_bands)  # Normalize first 12 bands
-    ])
+    if normalize:
+        transform = T.Compose([
+            T.Lambda(histogram_equalization),  # Apply histogram equalization
+            T.Lambda(normalize_bands)  # Normalize first 12 bands
+        ])
+    else:
+        transform = lambda x: x
     return transform
 
 
@@ -50,7 +53,7 @@ class CropDataset(Dataset):
     """
     Custom dataset class for loading the CV4A Kenya Crop Type dataset.
     """
-    def __init__(self, root, split_csv, transform=None, chip_size=224, stride=16):
+    def __init__(self, root, split_csv, transform=None, chip_size=224, stride=112):
         """
         Initializes the dataset.
 
@@ -71,7 +74,7 @@ class CropDataset(Dataset):
 
         # Load the dataset using TorchGeo's CV4A dataset
         self.dataset = CV4AKenyaCropType(root=self.root, download=False, chip_size=self.chip_size, stride=self.stride)
-
+        
     def __len__(self):
         """
         Returns the number of samples in the dataset.
@@ -105,7 +108,24 @@ class CropDataset(Dataset):
             "tile_index": tile_index
         }
 
-def create_dataloader(root, split_csv, batch_size=16, chip_size=224, stride=16, is_train=True, num_workers=4):
+class ProcessedCropDataset(CropDataset):
+    
+    def __init__(self, root, split_csv, transform=None, chip_size=224, stride=112, is_train=True):
+        super().__init__(root, split_csv, transform, chip_size, stride)
+        
+        self.root = root.replace("raw", "processed")
+        self.is_train = is_train
+        
+        assert self.stride == 16
+        assert self.chip_size == 224
+        if is_train:
+            dataset_path = Path(self.root) / "train_samples.pt"
+        else:
+            dataset_path = Path(self.root) / "test_samples.pt"
+        self.dataset = torch.load(dataset_path)
+    
+
+def create_dataloader(root, split_csv, batch_size=16, chip_size=224, stride=16, is_train=True, num_workers=4, load_processed=True):
     """
     Creates a DataLoader for the dataset.
 
@@ -120,31 +140,48 @@ def create_dataloader(root, split_csv, batch_size=16, chip_size=224, stride=16, 
     Returns:
         - dataloader (DataLoader): The created DataLoader.
     """
-    # TODO: Directly apply normalizations at initialization
     # TODO: Add more transformations (e.g., augmentations)
     transform = get_transforms()
 
     # Choose the correct subset based on whether we're training or testing
-    dataset = CropDataset(
+    if load_processed:
+        dataset = ProcessedCropDataset(
+            root=root,
+            split_csv=split_csv,
+            transform=transform,
+            chip_size=chip_size,
+            stride=stride,
+            is_train=is_train,
+        )
+    
+    else:
+        dataset = CropDataset(
         root=root,
         split_csv=split_csv,
         transform=transform,
         chip_size=chip_size,
-        stride=stride
-    )
+        stride=stride,
 
-    # Filter for training or testing split
-    # TODO: Speed this up by saving the indices of the training and testing samples
-    if is_train:
-        # Only load the training IDs
-        train_ids = dataset.train_ids
-        dataset.dataset = [item for item in dataset.dataset if item["tile_index"] in train_ids]
-    else:
-        # Only load the testing IDs
-        test_ids = dataset.test_ids
-        dataset.dataset = [item for item in dataset.dataset if item["tile_index"] in test_ids]
+        is_train=is_train,
+        )
+            # Filter for training or testing split
+            
+        if is_train:
+            valid_ids = torch.Tensor(np.append(dataset.train_ids, [0])).int()
+        else:
+            valid_ids = torch.Tensor(np.append(dataset.val_ids, [0])).int()
 
+        dataset.dataset = [
+            item for item in dataset.dataset 
+            if torch.isin(item["field_ids"].unique(), valid_ids).all() and item["field_ids"].unique().shape[0] > 1
+        ]
+
+
+        
     # Create DataLoader
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers)
+    
+    class_distribution = torch.bincount(torch.cat([item["mask"].flatten() for item in dataset.dataset]).int())
+    print(f"Class distribution {"Train" if is_train else "Test"}: {class_distribution}")
 
     return dataloader

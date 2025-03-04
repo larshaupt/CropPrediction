@@ -127,11 +127,11 @@ def main(config_path='config/config.yaml'):
     trainer.train(config['num_epochs'])
     
     # Evaluate the model on the validation set
-    eval_loss, eval_acc, confusion_mat, classification_rep = evaluate(model, val_loader, criterion, device)
-    log_evaluation_metrics(eval_loss, eval_acc, confusion_mat, classification_rep, logger)
+    #eval_loss, eval_acc, confusion_mat, classification_rep = evaluate(model, val_loader, criterion, device)
+    #log_evaluation_metrics(eval_loss, eval_acc, confusion_mat, classification_rep, logger)
     
     # Log evaluation metrics to Wandb
-    wandb.log({"eval_loss": eval_loss, "eval_acc": eval_acc})
+    #wandb.log({"eval_loss": eval_loss, "eval_acc": eval_acc})
     
     # Save the model
     model_path = Path(config['output_dir']) / 'models' / 'final_model.pth'

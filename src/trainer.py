@@ -87,7 +87,7 @@ class Trainer:
 
             # Update running loss and accuracy
             running_loss += loss.item()
-            preds = (torch.nn.functional.sigmoid(outputs) > 0.5).detach().cpu()
+            preds = torch.nn.functional.sigmoid(outputs).detach().cpu()
             target_max = target_max.detach().cpu()
             
             predictions.append(preds)
@@ -122,7 +122,7 @@ class Trainer:
             for batch_idx, batch in enumerate(batch_tqdm):
                 
                 images = batch["image"].to(self.device)
-                labels = batch["field_ids"].to(self.device)
+                labels = batch["mask"].to(self.device)
 
                 # Forward pass
                 outputs = self.model(images)
@@ -130,10 +130,9 @@ class Trainer:
                 # Calculate loss
                 loss, target_max = self.criterion(outputs, labels)
 
-
                 # Update running loss and accuracy
                 running_loss += loss.item()
-                preds = (torch.nn.functional.sigmoid(outputs) > 0.5).detach().cpu()
+                preds = torch.nn.functional.sigmoid(outputs).detach().cpu()
                 target_max = target_max.detach().cpu()
                 
                 predictions.append(preds)
@@ -167,6 +166,9 @@ class Trainer:
 
             # Evaluate the model
             val_loss, val_metrics = self._evaluate(epoch)
+            
+            # Log the results for the current validation
+            wandb.log({"val_loss": val_loss, "val_acc": val_metrics[0]})
 
             # Log the results for the current epoch
             self.logger.info(f"Epoch {epoch+1}/{num_epochs}: "
