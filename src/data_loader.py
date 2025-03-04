@@ -111,7 +111,7 @@ class CropDataset(Dataset):
 class ProcessedCropDataset(CropDataset):
     
     def __init__(self, root, split_csv, transform=None, chip_size=224, stride=112, is_train=True):
-        super().__init__(root, split_csv, transform, chip_size, stride)
+        super().__init__(root = root, split_csv = split_csv, transform = transform, chip_size = chip_size, stride = stride)
         
         self.root = root.replace("raw", "processed")
         self.is_train = is_train

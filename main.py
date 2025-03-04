@@ -6,11 +6,12 @@ import wandb  # Import wandb
 from pathlib import Path
 
 from torch.optim import Adam
-from torchmetrics import Accuracy
+from torchmetrics import Accuracy, F1Score
 from src.data_loader import create_dataloader
 from src.model import CropClassifierWithGRU
 from src.trainer import Trainer
 from src.evaluator import evaluate, log_evaluation_metrics
+from src.metrics import F1ScorePerClass
 from src.losses import BCEMILLoss
 
 def setup_logger(log_dir):
@@ -106,9 +107,16 @@ def main(config_path='config/config.yaml'):
     ).to(device)
     
     # Define loss function and optimizer
-    criterion = BCEMILLoss(n_classes=config['num_classes'])
+    criterion = BCEMILLoss(n_classes=config['num_classes'], merge_intercropping=True)
     optimizer = Adam(model.parameters(), lr=config['lr'])
-    metrics = [Accuracy(task="multilabel", num_classes=config["num_classes"], num_labels=config["num_classes"])]
+    metrics = {
+        "accuracy": Accuracy(task="multilabel", num_labels=config["num_classes"]),
+        "f1_score_macro": F1Score(task="multilabel", average="macro", num_labels=config["num_classes"]),
+        "f1_score_micro": F1Score(task="multilabel", average="micro", num_labels=config["num_classes"]),
+        "f1_score_weighted": F1Score(task="multilabel", average="weighted", num_labels=config["num_classes"])
+        }
+    for i_class in range(config["num_classes"]):
+        metrics[f"f1_score_{i_class}"] = F1ScorePerClass(class_idx=i_class)
     
     # Initialize the trainer
     trainer = Trainer(
